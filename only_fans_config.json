@@ -1,0 +1,39 @@
+{
+  "owner_profile": "NhanAZ",
+  "target_machine": {
+    "manufacturer": "LENOVO",
+    "model_code": "20NKS02N00",
+    "marketing_name": "ThinkPad T495",
+    "bios_prefix": "R12"
+  },
+  "ec": {
+    "preferred_backend": "tvic-helper",
+    "tvic_port_type": "type2",
+    "command_port_hex": "0x66",
+    "data_port_hex": "0x62",
+    "fan_control_register_hex": "0x2F",
+    "fan_rpm_lsb_register_hex": "0x84",
+    "fan_rpm_msb_register_hex": "0x85",
+    "bios_auto_value_hex": "0x80",
+    "fan_max_value_hex": "0x40"
+  },
+  "fan_policy": {
+    "manual_min_level": 1,
+    "manual_max_level": 7,
+    "startup_mode": "bios",
+    "poll_ms": 2000,
+    "hysteresis_c": 3,
+    "failsafe_temp_c": 92,
+    "min_valid_temp_c": 20,
+    "max_valid_temp_c": 105,
+    "smart_curve": [
+      { "temp_c": 0, "level": 1 },
+      { "temp_c": 55, "level": 1 },
+      { "temp_c": 62, "level": 2 },
+      { "temp_c": 68, "level": 3 },
+      { "temp_c": 74, "level": 4 },
+      { "temp_c": 80, "level": 5 },
+      { "temp_c": 86, "level": 7 }
+    ]
+  }
+}
