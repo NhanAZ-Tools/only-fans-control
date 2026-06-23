@@ -35,6 +35,9 @@ jobs:
       - name: Check Python syntax
         run: python -m py_compile src/only_fans.py tools/make_icon.py
 
+      - name: Test single-instance guard
+        run: python -m unittest discover -s tests -v
+
       - name: Test Go helper
         run: go test ./helper/...
 
@@ -42,9 +45,23 @@ jobs:
         shell: powershell
         run: ./build.ps1
 
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress --yes
+
+      - name: Build Windows installer
+        shell: powershell
+        run: ./build-installer.ps1
+
       - name: Upload Windows package
         uses: actions/upload-artifact@v7
         with:
           name: OnlyFansControl-windows-x64
           path: dist/OnlyFansControl
+          if-no-files-found: error
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: OnlyFansControl-windows-setup
+          path: release/*-windows-setup.exe
           if-no-files-found: error

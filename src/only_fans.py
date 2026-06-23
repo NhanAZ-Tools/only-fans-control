@@ -9,7 +9,9 @@ import sys
 import threading
 import time
 import tkinter as tk
+import winreg
 from dataclasses import dataclass
+from ctypes import wintypes
 from pathlib import Path
 from tkinter import messagebox, ttk
 from typing import Any
@@ -23,6 +25,67 @@ except Exception:
 
 
 APP_NAME = "Only Fans Control"
+BASE_WINDOW_WIDTH = 600
+BASE_WINDOW_HEIGHT = 520
+STARTUP_VALUE_NAME = "OnlyFansControl"
+STARTUP_REGISTRY_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
+INSTANCE_MUTEX_NAME = r"Local\NhanAZTools.OnlyFansControl.Mutex"
+INSTANCE_EVENT_NAME = r"Local\NhanAZTools.OnlyFansControl.Activate"
+ERROR_ALREADY_EXISTS = 183
+WAIT_OBJECT_0 = 0
+
+
+class SingleInstance:
+    """Own the app-wide mutex and receive restore requests from later launches."""
+
+    def __init__(
+        self,
+        mutex_name: str = INSTANCE_MUTEX_NAME,
+        event_name: str = INSTANCE_EVENT_NAME,
+    ) -> None:
+        self.kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        self.kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
+        self.kernel32.CreateMutexW.restype = wintypes.HANDLE
+        self.kernel32.CreateEventW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.BOOL, wintypes.LPCWSTR]
+        self.kernel32.CreateEventW.restype = wintypes.HANDLE
+        self.kernel32.SetEvent.argtypes = [wintypes.HANDLE]
+        self.kernel32.SetEvent.restype = wintypes.BOOL
+        self.kernel32.ResetEvent.argtypes = [wintypes.HANDLE]
+        self.kernel32.ResetEvent.restype = wintypes.BOOL
+        self.kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        self.kernel32.WaitForSingleObject.restype = wintypes.DWORD
+        self.kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        self.kernel32.CloseHandle.restype = wintypes.BOOL
+
+        ctypes.set_last_error(0)
+        self.mutex_handle = self.kernel32.CreateMutexW(None, False, mutex_name)
+        if not self.mutex_handle:
+            raise ctypes.WinError(ctypes.get_last_error())
+        self.is_primary = ctypes.get_last_error() != ERROR_ALREADY_EXISTS
+
+        self.event_handle = self.kernel32.CreateEventW(None, True, False, event_name)
+        if not self.event_handle:
+            self.close()
+            raise ctypes.WinError(ctypes.get_last_error())
+
+        if not self.is_primary:
+            self.kernel32.SetEvent(self.event_handle)
+            self.close()
+
+    def activation_requested(self) -> bool:
+        if not self.event_handle:
+            return False
+        if self.kernel32.WaitForSingleObject(self.event_handle, 0) != WAIT_OBJECT_0:
+            return False
+        self.kernel32.ResetEvent(self.event_handle)
+        return True
+
+    def close(self) -> None:
+        for attribute in ("event_handle", "mutex_handle"):
+            handle = getattr(self, attribute, None)
+            if handle:
+                self.kernel32.CloseHandle(handle)
+                setattr(self, attribute, None)
 
 
 def app_root() -> Path:
@@ -53,7 +116,7 @@ HELPER_PATH = bundled_path("helper/tvic-ec-helper.exe")
 def setup_logging() -> None:
     LOG_DIR.mkdir(exist_ok=True)
     logging.basicConfig(
-        filename=LOG_DIR / "only-fans.log",
+        filename=LOG_DIR / "only-fans-control.log",
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
         encoding="utf-8",
@@ -669,7 +732,7 @@ class SmartPolicy:
 
 
 class OnlyFansApp:
-    def __init__(self) -> None:
+    def __init__(self, single_instance: SingleInstance | None = None) -> None:
         setup_logging()
         self.config = AppConfig.load()
         self.machine = detect_machine()
@@ -684,13 +747,15 @@ class OnlyFansApp:
         self.closed = False
         self.exiting = False
         self.tray_icon = None
+        self.started_at_login = "--startup" in sys.argv
+        self.single_instance = single_instance
 
         self.root = tk.Tk()
         self.set_window_icon()
         self.root.title(APP_NAME)
-        self.root.geometry("600x520")
-        self.root.resizable(False, False)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+        if self.started_at_login:
+            self.root.withdraw()
 
         self.mode_var = tk.StringVar(value=self.config.startup_mode)
         self.manual_level_var = tk.IntVar(value=0)
@@ -701,11 +766,63 @@ class OnlyFansApp:
         self.backend_var = tk.StringVar(value="Backend: --")
         self.mode_info_var = tk.StringVar(value="")
         self.manual_info_var = tk.StringVar(value="")
+        self.startup_var = tk.BooleanVar(value=self.startup_enabled())
 
         self.build_ui()
         self.initialize_backend()
         self.apply_current_mode()
+        self.fit_and_lock_window()
         self.root.after(250, self.tick)
+        self.root.after(200, self.poll_instance_activation)
+        if self.started_at_login:
+            self.root.after(100, self.minimize_to_tray)
+
+    def fit_and_lock_window(self) -> None:
+        self.root.update_idletasks()
+        width = max(BASE_WINDOW_WIDTH, self.root.winfo_reqwidth())
+        height = max(BASE_WINDOW_HEIGHT, self.root.winfo_reqheight())
+        self.root.geometry(f"{width}x{height}")
+        self.root.minsize(width, height)
+        self.root.maxsize(width, height)
+        self.root.resizable(False, False)
+
+    @staticmethod
+    def startup_command() -> str:
+        if getattr(sys, "frozen", False):
+            args = [str(Path(sys.executable).resolve()), "--startup"]
+        else:
+            args = [str(Path(sys.executable).resolve()), str(Path(__file__).resolve()), "--startup"]
+        return subprocess.list2cmdline(args)
+
+    @staticmethod
+    def startup_enabled() -> bool:
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, STARTUP_REGISTRY_PATH) as key:
+                command, _ = winreg.QueryValueEx(key, STARTUP_VALUE_NAME)
+            return str(command).casefold() == OnlyFansApp.startup_command().casefold()
+        except OSError:
+            return False
+
+    def set_startup_enabled(self, enabled: bool) -> None:
+        with winreg.CreateKeyEx(
+            winreg.HKEY_CURRENT_USER,
+            STARTUP_REGISTRY_PATH,
+            0,
+            winreg.KEY_SET_VALUE,
+        ) as key:
+            if enabled:
+                winreg.SetValueEx(
+                    key,
+                    STARTUP_VALUE_NAME,
+                    0,
+                    winreg.REG_SZ,
+                    self.startup_command(),
+                )
+            else:
+                try:
+                    winreg.DeleteValue(key, STARTUP_VALUE_NAME)
+                except FileNotFoundError:
+                    pass
 
     def set_window_icon(self) -> None:
         icon_path = bundled_path("assets/fan.png")
@@ -733,7 +850,7 @@ class OnlyFansApp:
             ttk.Label(header, image=self.header_logo).pack(side=tk.LEFT, padx=(0, 12))
         header_text = ttk.Frame(header)
         header_text.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        ttk.Label(header_text, text="Only Fans", style="Title.TLabel").pack(anchor=tk.W)
+        ttk.Label(header_text, text=APP_NAME, style="Title.TLabel").pack(anchor=tk.W)
         ttk.Label(header_text, text=f"{self.machine.display_name} | BIOS {self.machine.bios_version}").pack(anchor=tk.W, pady=(2, 0))
 
         metrics = ttk.Frame(frame)
@@ -800,8 +917,15 @@ class OnlyFansApp:
         buttons = ttk.Frame(frame)
         buttons.pack(fill=tk.X, pady=(12, 8))
         ttk.Button(buttons, text="BIOS now", command=self.force_bios).pack(side=tk.LEFT)
-        ttk.Button(buttons, text="Minimize to tray", command=self.minimize_to_tray).pack(side=tk.LEFT, padx=8)
-        ttk.Button(buttons, text="Run as admin", command=self.try_relaunch_admin).pack(side=tk.RIGHT)
+        ttk.Button(buttons, text="Run as admin", command=self.try_relaunch_admin).pack(side=tk.LEFT, padx=8)
+        ttk.Button(buttons, text="Exit app", command=self.exit_app).pack(side=tk.RIGHT)
+        ttk.Button(buttons, text="Minimize to tray", command=self.minimize_to_tray).pack(side=tk.RIGHT, padx=8)
+        ttk.Checkbutton(
+            buttons,
+            text="Run at startup",
+            variable=self.startup_var,
+            command=self.on_startup_toggled,
+        ).pack(side=tk.RIGHT, padx=8)
 
         curve = ", ".join(f"{p.temp_c}C -> L{p.level}" for p in self.config.smart_curve)
         ttk.Label(frame, text=f"Smart curve: {curve}", wraplength=530).pack(anchor=tk.W, pady=(8, 2))
@@ -881,6 +1005,16 @@ class OnlyFansApp:
         except Exception as exc:
             messagebox.showerror(APP_NAME, f"Could not relaunch as Administrator: {exc}")
 
+    def on_startup_toggled(self) -> None:
+        enabled = self.startup_var.get()
+        try:
+            self.set_startup_enabled(enabled)
+            state = "enabled" if enabled else "disabled"
+            self.set_status(f"Run at startup is {state}.")
+        except OSError as exc:
+            self.startup_var.set(not enabled)
+            self.set_status(f"Could not update Run at startup: {exc}")
+
     def set_status(self, text: str) -> None:
         self.status_var.set(text)
         logging.info(text)
@@ -957,6 +1091,14 @@ class OnlyFansApp:
             logging.exception("Tick failed")
         self.root.after(self.config.poll_ms, self.tick)
 
+    def poll_instance_activation(self) -> None:
+        if self.closed:
+            return
+        if self.single_instance and self.single_instance.activation_requested():
+            self.show_window()
+            self.set_status("The existing app window was restored instead of opening a second instance.")
+        self.root.after(200, self.poll_instance_activation)
+
     def refresh_sensors(self) -> None:
         rpm = None
         raw_level = None
@@ -1014,9 +1156,9 @@ class OnlyFansApp:
                 icon_path = bundled_path("assets/fan.png")
                 image = Image.open(icon_path)
                 menu = pystray.Menu(
-                    pystray.MenuItem("Open Only Fans", self.tray_show_window, default=True),
+                    pystray.MenuItem(f"Open {APP_NAME}", self.tray_show_window, default=True),
                     pystray.MenuItem("Return to BIOS default", self.tray_force_bios),
-                    pystray.MenuItem("Exit", self.tray_exit_app),
+                    pystray.MenuItem("Exit app", self.tray_exit_app),
                 )
                 self.tray_icon = pystray.Icon(APP_NAME, image, APP_NAME, menu)
             self.tray_icon.run_detached()
@@ -1041,6 +1183,8 @@ class OnlyFansApp:
         self.root.after(0, self.exit_app)
 
     def exit_app(self) -> None:
+        if self.exiting:
+            return
         self.exiting = True
         self.closed = True
         logging.info("Closing app")
@@ -1059,6 +1203,8 @@ class OnlyFansApp:
                 self.tray_icon.stop()
             except Exception:
                 logging.exception("Failed to stop tray icon")
+        if self.single_instance:
+            self.single_instance.close()
         self.root.destroy()
 
     def run(self) -> None:
@@ -1066,12 +1212,16 @@ class OnlyFansApp:
 
 
 def main() -> None:
+    single_instance = None
     try:
         if "--diagnose" in sys.argv:
             raise SystemExit(run_diagnostics())
         if any(arg in sys.argv for arg in ["--snapshot", "--bios", "--set-level"]):
             raise SystemExit(run_control_command(sys.argv[1:]))
-        app = OnlyFansApp()
+        single_instance = SingleInstance()
+        if not single_instance.is_primary:
+            return
+        app = OnlyFansApp(single_instance)
         app.run()
     except Exception as exc:
         setup_logging()
@@ -1081,6 +1231,9 @@ def main() -> None:
         except Exception:
             pass
         raise
+    finally:
+        if single_instance:
+            single_instance.close()
 
 
 if __name__ == "__main__":

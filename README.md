@@ -18,9 +18,24 @@ Detected target machine:
 
 Changing the mode or custom level applies immediately. The app has no Apply button.
 
-Closing the window with `X` minimizes the app to the system tray. To exit for real, use the tray menu `Exit`; the app will try to return fan control to BIOS default first.
+Closing the window with `X` minimizes the app to the system tray. To exit for real, use `Exit app` in the window or tray menu; the app will try to return fan control to BIOS default first.
+
+The app permits only one GUI instance. Opening it again restores the existing window, including when it is hidden in the system tray, instead of starting a second fan controller.
+
+Enable `Run at startup` to launch the app automatically when the current Windows user signs in. Startup launches go directly to the system tray.
 
 ## Run
+
+### Installer (recommended)
+
+Download and run `OnlyFansControl-vX.Y.Z-windows-setup.exe` from the latest GitHub release. The per-user installer does not require Administrator rights and provides:
+
+- a stable install path for `Run at startup`
+- a Start Menu shortcut
+- an optional desktop shortcut
+- a standard Windows uninstaller
+
+### Portable
 
 ```powershell
 .\run.ps1
@@ -63,6 +78,18 @@ Run diagnostics from the build:
 ```
 
 The diagnostics report is written to `dist\OnlyFansControl\diagnostics.json`.
+
+## Build the installer
+
+Install Inno Setup 6, then build the portable package and installer:
+
+```powershell
+winget install --id JRSoftware.InnoSetup --exact
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build-installer.ps1
+```
+
+The installer is written to `release\OnlyFansControl-vX.Y.Z-windows-setup.exe`.
 
 ## Fan Control Backend
 
