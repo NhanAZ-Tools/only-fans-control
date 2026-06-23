@@ -1,0 +1,50 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Check Python syntax
+        run: python -m py_compile src/only_fans.py tools/make_icon.py
+
+      - name: Test Go helper
+        run: go test ./helper/...
+
+      - name: Build Windows package
+        shell: powershell
+        run: ./build.ps1
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: OnlyFansControl-windows-x64
+          path: dist/OnlyFansControl
+          if-no-files-found: error
