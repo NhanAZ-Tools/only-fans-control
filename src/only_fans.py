@@ -914,23 +914,20 @@ class OnlyFansApp:
         self.manual_label.pack(anchor=tk.W)
         self.custom_controls = self.level_buttons
 
-        buttons = ttk.Frame(frame)
-        buttons.pack(fill=tk.X, pady=(12, 8))
-        ttk.Button(buttons, text="BIOS now", command=self.force_bios).pack(side=tk.LEFT)
-        ttk.Button(buttons, text="Run as admin", command=self.try_relaunch_admin).pack(side=tk.LEFT, padx=8)
-        ttk.Button(buttons, text="Exit app", command=self.exit_app).pack(side=tk.RIGHT)
-        ttk.Button(buttons, text="Minimize to tray", command=self.minimize_to_tray).pack(side=tk.RIGHT, padx=8)
+        settings = ttk.Frame(frame)
+        settings.pack(fill=tk.X, pady=(12, 8))
         ttk.Checkbutton(
-            buttons,
+            settings,
             text="Run at startup",
             variable=self.startup_var,
             command=self.on_startup_toggled,
-        ).pack(side=tk.RIGHT, padx=8)
+        ).pack(side=tk.LEFT)
+        ttk.Button(settings, text="Exit App", command=self.exit_app).pack(side=tk.RIGHT)
 
         curve = ", ".join(f"{p.temp_c}C -> L{p.level}" for p in self.config.smart_curve)
-        ttk.Label(frame, text=f"Smart curve: {curve}", wraplength=530).pack(anchor=tk.W, pady=(8, 2))
-        ttk.Label(frame, textvariable=self.backend_var, wraplength=530).pack(anchor=tk.W)
-        ttk.Label(frame, textvariable=self.status_var, wraplength=530).pack(anchor=tk.W, pady=(8, 0))
+        ttk.Label(frame, text=f"Smart curve: {curve}", style="Hint.TLabel", wraplength=530).pack(anchor=tk.W, pady=(8, 2))
+        ttk.Label(frame, textvariable=self.backend_var, style="Hint.TLabel", wraplength=530).pack(anchor=tk.W)
+        ttk.Label(frame, textvariable=self.status_var, style="Hint.TLabel", wraplength=530).pack(anchor=tk.W, pady=(8, 0))
         self.update_manual_info()
         self.update_mode_controls()
 
@@ -973,7 +970,9 @@ class OnlyFansApp:
     def update_mode_controls(self) -> None:
         mode = self.mode_var.get()
         manual_enabled = mode == "manual" and self.controls_ready()
-        if mode != "manual" and self.manual_level_var.get() != 0:
+        if mode == "manual" and self.manual_level_var.get() == 0:
+            self.manual_level_var.set(self.config.manual_max_step)
+        elif mode != "manual" and self.manual_level_var.get() != 0:
             self.manual_level_var.set(0)
         for control in getattr(self, "custom_controls", []):
             control.configure(state=tk.NORMAL if manual_enabled else tk.DISABLED)
@@ -1161,7 +1160,7 @@ class OnlyFansApp:
                     pystray.MenuItem("Exit app", self.tray_exit_app),
                 )
                 self.tray_icon = pystray.Icon(APP_NAME, image, APP_NAME, menu)
-            self.tray_icon.run_detached()
+                self.tray_icon.run_detached()
             self.root.withdraw()
             self.set_status("Running in the system tray.")
         except Exception:
