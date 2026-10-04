@@ -14,6 +14,10 @@ foreach ($report in @($hardware,$ui,$crash)) {
 if (-not $unit.success -or -not $finalProbe.ec_probe_success -or ($finalProbe.ec.fan_raw -band 0xC0) -ne 0x80) { throw 'Unit checks or final BIOS state are not verified.' }
 $iconResult = ''
 $iconEvidence = ''
+$crosscheckEvidence = ''
+if (Test-Path -LiteralPath (Join-Path $artifactsPath 'cpu-temperature-crosscheck.json')) {
+    $crosscheckEvidence = 'An earlier comparison with LibreHardwareMonitor 0.9.6 showed CPU Tctl/Tdie around 87-88.5 C and EC temperatures around 87-88 C under heavy load. That earlier report is retained in cpu-temperature-crosscheck.json. The library is not required to run Only Fans Control.'
+}
 $iconReportPath = Join-Path $artifactsPath 'icon-verification.json'
 if (Test-Path -LiteralPath $iconReportPath) {
     $iconReport = Get-Content -LiteralPath $iconReportPath -Raw | ConvertFrom-Json
@@ -104,7 +108,7 @@ Levels are discrete EC steps. RPM varies with firmware, temperature, and settlin
 
 Included evidence: hardware-test.json, hardware-samples.csv, ui-test.json, ui-test.png, watchdog-crash-test.json, self-test.json, and ec-probe-final.json. The executable_sha256 fields in the hardware, GUI, and crash reports match the executable above.@@icon_evidence@@
 
-An earlier comparison with LibreHardwareMonitor 0.9.6 showed CPU Tctl/Tdie around 87–88.5 °C and EC temperatures around 87–88 °C under heavy load. That report is retained in cpu-temperature-crosscheck.json. The library is not required to run Only Fans Control.
+@@crosscheck@@
 
 Actual Windows sleep or logoff, kernel hangs, power loss, and multi-hour load calibration have not been tested. This run verifies fan control on the device and BIOS listed above; it does not establish compatibility with other models or BIOS versions.
 '@
@@ -114,6 +118,7 @@ $replacements = @{
     '@@hardware_count@@'=[string]$hardware.checks.Count; '@@ui_count@@'=[string]$ui.checks.Count; '@@unit_count@@'=[string]$unit.passed;
     '@@custom_test_note@@'=$customTestNote; '@@custom_measurements@@'=$customMeasurementNote;
     '@@icon_result@@'=$iconResult; '@@icon_evidence@@'=$iconEvidence;
+    '@@crosscheck@@'=$crosscheckEvidence;
     '@@restore_seconds@@'=[string]$observedRestoreSeconds; '@@baseline_rpm@@'=[string]$baseline.rpm; '@@baseline_temp@@'=[string]$baseline.temperature_c;
     '@@max_rpm@@'=[string]$maxRpm; '@@max_last@@'=[string]$maxHoldLast.rpm; '@@table@@'=($tableRows -join [Environment]::NewLine)
 }
