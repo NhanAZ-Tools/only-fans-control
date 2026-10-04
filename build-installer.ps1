@@ -14,7 +14,7 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') {
     throw "Installer version must use numeric SemVer, for example 1.0.1. Received: $Version"
 }
 
-if (-not (Test-Path ".\dist\OnlyFansControl\OnlyFansControl.exe")) {
+if (-not (Test-Path ".\build\OnlyFansControl\OnlyFansControl.exe")) {
     & ".\build.ps1"
 }
 
@@ -23,6 +23,8 @@ $IsccCandidates = @(
     (Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"),
     (Join-Path $env:ProgramFiles "Inno Setup 6\ISCC.exe")
 )
+$isccCommand = Get-Command ISCC.exe -ErrorAction SilentlyContinue
+if ($isccCommand) { $IsccCandidates = @($isccCommand.Source) + $IsccCandidates }
 $Iscc = $IsccCandidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 if (-not $Iscc) {
     throw "Inno Setup 6 is required. Install it with: winget install --id JRSoftware.InnoSetup --exact"
