@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $localExe = Join-Path $PSScriptRoot "OnlyFansControl.exe"
-$builtExe = Join-Path $PSScriptRoot "dist\OnlyFansControl\OnlyFansControl.exe"
+$builtExe = Join-Path $PSScriptRoot "build\OnlyFansControl\OnlyFansControl.exe"
 
 if (Test-Path $localExe) {
     $exe = $localExe
@@ -11,4 +11,4 @@ if (Test-Path $localExe) {
     throw "OnlyFansControl.exe was not found."
 }
 
-Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -Verb RunAs
+Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -Verb RunAs -WindowStyle Hidden

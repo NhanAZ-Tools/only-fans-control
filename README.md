@@ -1,119 +1,87 @@
 # Only Fans Control
 
-A minimal Windows fan monitor and controller tuned for NhanAZ's Lenovo ThinkPad T495.
+A minimal Windows fan monitor and controller for selected Lenovo ThinkPad models. Built primarily for personal use. Issues and pull requests are welcome.
 
-Detected target machine:
+The native C#/WPF app has an English interface, blue Light mode, [Lucide icons](https://lucide.dev/) and the [Fan logo](https://lucide.dev/icons/fan). It runs in the system tray. Mode and level changes apply immediately, with no Apply button.
 
-- Manufacturer: `LENOVO`
-- Model code: `20NKS02N00`
-- Marketing name: `ThinkPad T495`
-- BIOS: `R12ET64W(1.34)`
+## Device profiles
 
-## Modes
+| Device | Machine type | CPU match | Profile |
+| --- | --- | --- | --- |
+| Lenovo ThinkPad L14 Gen 4 AMD | `21H6` | AMD Ryzen 7530U | `thinkpad-l14-gen4-amd` |
+| Lenovo ThinkPad T495 | `20NK` | AMD Ryzen | `thinkpad-t495` |
 
-- `Custom`: choose one discrete fan step from `1` to `7`, or `Max`.
-- `Max`: the full-speed custom step, writing raw `0x40` to the Embedded Controller.
-- `BIOS default`: return fan control to the laptop firmware/Embedded Controller.
-- `Smart auto`: read EC temperatures and adjust the fan level from the curve in `only_fans_config.json`.
-
-Changing the mode or custom level applies immediately. The app has no Apply button.
-
-Closing the window with `X` minimizes the app to the system tray. To exit for real, use `Exit app` in the window or tray menu; the app will try to return fan control to BIOS default first.
-
-The app permits only one GUI instance. Opening it again restores the existing window, including when it is hidden in the system tray, instead of starting a second fan controller.
-
-Enable `Run at startup` to launch the app automatically when the current Windows user signs in. Startup launches go directly to the system tray.
+The app selects a profile automatically from manufacturer, machine type, product name, and CPU. Other devices receive system monitoring without EC fan control. Hardware addresses are defined in the application profiles; they are not editable in the fan-curve JSON. See [device profiles](docs/device-profiles.md).
 
 ## Run
 
-### Installer (recommended)
+Requires Windows 10/11 x64 and .NET Framework 4.8.
 
-Download and run `OnlyFansControl-vX.Y.Z-windows-setup.exe` from the latest GitHub release. The per-user installer does not require Administrator rights and provides:
+1. Extract `OnlyFansControl-Windows-x64.zip`, or use the installer.
+2. Install the bundled `driver/PawnIO_setup.exe`, selecting the **Official** version.
+3. Open `Start-OnlyFansControl.cmd` and accept the Windows UAC prompt.
+4. Use **EC connection** for connection details, reconnection, and logs.
 
-- a stable install path for `Run at startup`
-- a Start Menu shortcut
-- an optional desktop shortcut
-- a standard Windows uninstaller
+Running the EXE without administrator rights opens system monitoring. Direct EC temperature, RPM, and fan control require administrator rights and PawnIO. Driver installation is initiated by the user.
 
-### Portable
+Closing or minimizing hides the app to the tray. Opening it again restores the existing window. Use **Exit · restore BIOS** to exit completely. Each launch starts by monitoring the current state; a previous manual mode is not reapplied. The `--startup` argument opens directly in the tray.
 
-```powershell
-.\run.ps1
-```
+## Modes
 
-The script asks for Administrator rights when needed.
+| Mode | Behavior |
+| --- | --- |
+| Custom | Select a discrete level **1–7** or **Max**. Each click selects Custom and sends the command immediately. |
+| Max | Send the full-speed EC command **0x40**. |
+| BIOS default | Send **0x80** to return fan control to Lenovo firmware. |
+| Smart auto | Use the highest valid EC temperature and the selected profile's JSON curve. |
 
-## Build the `.exe`
+Fan levels are EC steps, not fixed percentages or RPM targets. Firmware and settling time affect the resulting RPM.
 
-Install Python dependencies first:
+## Configuration
 
-```powershell
-python -m pip install -r requirements.txt
-```
+**Open config** opens `only_fans_config.json` beside the EXE. Saved changes reload during the next polling cycle.
 
-The build also requires Go because the TVicPort EC helper is compiled from `helper\tvic_ec_helper.go`.
+- `curve` supplies the shared curve, initially tuned for the L14.
+- `profile_curves` optionally supplies a curve for a specific profile. The supplied configuration includes the T495 curve from the earlier implementation. Remove an override to use the shared curve.
+- `poll_interval_ms` sets the polling interval, initially 2000 ms.
+- `hysteresis_c` holds the current level during small cooling changes, initially 3 °C.
+- `critical_temperature_c` forces Max while the app owns fan control, initially 90 °C. It releases below the threshold minus hysteresis. BIOS default leaves firmware in control.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
-```
+Existing schema-version-1 configuration files without `profile_curves` continue to use their shared curve. Unknown profile keys, invalid curves, or invalid JSON disable Smart auto and restore any fan control held by the app to BIOS.
 
-If `C:\Users\NhanAZ\Downloads\fan.svg` exists, the build script uses it as the app and executable icon. Otherwise it falls back to `assets\fan.svg`.
+The earlier T495 `fan_policy` configuration is also accepted: its curve, polling interval, hysteresis, and temperature limit are read without changing the file. Its hardware-address fields do not override the application profiles. The installer preserves an existing configuration.
 
-The build output is:
+## EC behavior
 
-```text
-dist\OnlyFansControl\OnlyFansControl.exe
-```
+The app uses the signed PawnIO `LpcACPIEC` module. Current profiles use ports `0x62/0x66`, fan register `0x2F`, CPU temperature at `0x78`, other temperatures through `0x7F`, and RPM from `0x84/0x85`.
 
-Run the built executable as Administrator:
+Only levels 1–7, Max, and BIOS default may be written, with readback after every command. A CPU reading is required before control. Missing sensors and communication errors trigger BIOS recovery. An independent watchdog is ready before manual control begins and attempts BIOS recovery when the app exits, fails to send heartbeats for 6.5 seconds, or requests emergency recovery.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\run-exe-admin.ps1
-```
+Hardware recovery can fail if the EC or driver stops responding; the watchdog retries. Logs are stored in `%LOCALAPPDATA%/OnlyFansControl/app.log`. There is no account, telemetry, or network requirement at runtime. See [EC protocol](docs/ec-protocol.md) for details and references.
 
-Run diagnostics from the build:
+## Build
 
-```powershell
-.\dist\OnlyFansControl\OnlyFansControl.exe --diagnose
-```
-
-The diagnostics report is written to `dist\OnlyFansControl\diagnostics.json`.
-
-## Build the installer
-
-Install Inno Setup 6, then build the portable package and installer:
+The build uses the .NET Framework compiler included with Windows:
 
 ```powershell
-winget install --id JRSoftware.InnoSetup --exact
-powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File .\build-installer.ps1
+.\scripts\restore-dependencies.ps1
+.\build.ps1 -SkipPackage
+.\scripts\verify.ps1
+.\scripts\package.ps1
 ```
 
-The installer is written to `release\OnlyFansControl-vX.Y.Z-windows-setup.exe`.
+Output: `build/OnlyFansControl/OnlyFansControl.exe`. Packages and checksums are written to the repository root. Python, Go, and a .NET SDK are not required. The source package includes the original SVGs, complete third-party notices, and build scripts.
 
-## Fan Control Backend
+Build the installer with Inno Setup 6:
 
-The ThinkPad T495 does not expose fan control through standard WMI. This app controls the ThinkPad Embedded Controller directly:
+```powershell
+.\build-installer.ps1
+```
 
-- fan control register: `0x2F`
-- BIOS/default auto value: `0x80`
-- max/full-speed value: `0x40`
-- fan RPM registers: `0x84` + `0x85`
+The Windows CI workflow builds the app, runs simulated-EC and process tests, renders the WPF interface, and builds the installer. Physical fan tests run separately on the target laptop. See [testing](docs/testing.md).
 
-On this machine the preferred backend is `TVicPort` through the 32-bit helper at `helper\tvic-ec-helper.exe`. The installed `TVicPort64` driver was verified as running on the target Windows system.
+## Contributions and license
 
-If `TVicPort` is unavailable, the app can fall back to another port I/O driver. Place one of these sets in `drivers/` and run the app as Administrator:
+See [CONTRIBUTING.md](CONTRIBUTING.md) for fixes, profiles, and useful issue details. This project is maintained according to the author's personal needs and available time.
 
-- `WinRing0x64.dll` and `WinRing0x64.sys`
-- or `inpoutx64.dll` and the matching driver
-
-Without a working backend the app still opens, but monitoring and fan control stay locked.
-
-## Safety
-
-- Manual level `0` is intentionally not exposed to avoid turning the fan off by accident.
-- If the temperature reaches `failsafe_temp_c`, Smart auto returns control to BIOS default.
-- On real exit, the app tries to write `0x80` so the BIOS/EC controls the fan again.
-- `Max` writes raw `0x40` and should be used only when you intentionally want full fan speed.
-
-Fan control is low-level hardware behavior. Lenovo does not provide this as a normal application API. Watch temperatures during the first few minutes when using `Custom`, `Max`, or `Smart auto`.
+Application code is under the [MIT license](LICENSE). Distributed components retain their own licenses; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). The app is not affiliated with Lenovo.

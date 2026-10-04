@@ -1,6 +1,6 @@
 #define MyAppName "Only Fans Control"
 #ifndef AppVersion
-  #define AppVersion "1.0.1"
+  #define AppVersion "2.0.0"
 #endif
 #define MyAppPublisher "NhanAZ-Tools"
 #define MyAppURL "https://github.com/NhanAZ-Tools/only-fans-control"
@@ -22,7 +22,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=..\release
 OutputBaseFilename=OnlyFansControl-v{#AppVersion}-windows-setup
-SetupIconFile=..\assets\fan.ico
+SetupIconFile=..\src\Assets\AppIcon.ico
 UninstallDisplayName={#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 LicenseFile=..\LICENSE
@@ -46,7 +46,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 
 [Files]
-Source: "..\dist\OnlyFansControl\*"; DestDir: "{app}"; Excludes: "logs\*,control-result.json,diagnostics.json"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\build\OnlyFansControl\*"; DestDir: "{app}"; Excludes: "only_fans_config.json"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\build\OnlyFansControl\only_fans_config.json"; DestDir: "{app}"; Flags: onlyifdoesntexist
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
