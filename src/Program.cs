@@ -31,6 +31,8 @@ namespace OnlyFansControl
                 if (args.Length == 3 && args[0] == "--watchdog") return WatchdogOwner.Run(int.Parse(args[1]), args[2]);
                 if (args.Length == 4 && args[0] == "--watchdog-test") return WatchdogOwner.Run(int.Parse(args[1]), args[2], args[3]);
                 if (args.Length == 2 && args[0] == "--self-test") { SaveJson(output, SelfTests.Run()); return 0; }
+                if (args.Length == 2 && args[0] == "--curve-editor-test")
+                { Application app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown }; SaveJson(output, CurveEditorTests.Run(output)); app.Shutdown(); return 0; }
                 if (args.Length == 2 && args[0] == "--hardware-test")
                 {
                     AcquireSingleInstance();

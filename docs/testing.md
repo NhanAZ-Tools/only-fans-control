@@ -10,6 +10,10 @@
 
 This checks controller logic with a simulated EC, profile matching and curve selection, configuration rejection, named single-instance activation, and watchdog recovery using separate processes. It also records diagnostics and renders the WPF interface. No real fan register is written.
 
+The `--curve-editor-test` check also exercises curve validation, profile-specific saves, legacy configuration preservation, stale-file rejection, cancel/save behavior, and renders an offline editor preview to `artifacts/curve-editor-test.png`.
+
+Graph-editing checks cover coordinate snapping, table synchronization, neighbor and thermal-limit clamping, the fixed first threshold, draft isolation, and persistence of moved points.
+
 ## Hardware tests
 
 Close any other fan controller before testing. The scripts request administrator rights when needed.

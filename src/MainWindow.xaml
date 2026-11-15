@@ -93,6 +93,7 @@
         <Button x:Name="SmartButton" Grid.Column="6" Padding="14,14" HorizontalContentAlignment="Left" AutomationProperties.Name="Smart auto"><StackPanel><StackPanel Orientation="Horizontal"><icons:LucideIcon Icon="activity" Margin="0,0,8,0" VerticalAlignment="Center"/><TextBlock Text="Smart auto" FontSize="16" FontWeight="SemiBold"/></StackPanel><TextBlock Text="Follow the curve" FontSize="11" Margin="26,5,0,0"/></StackPanel></Button>
       </Grid>
       <UniformGrid x:Name="LevelsPanel" Columns="8" Margin="0,2,0,10"/>
+      <Button x:Name="CurveButton" Content="Edit fan curve" HorizontalAlignment="Right" Margin="0,0,0,8" Padding="12,7" AutomationProperties.Name="Edit fan curve" ToolTip="Edit the Smart auto curve for this device."/>
       <TextBlock Text="Mode and level changes apply immediately. Smart auto uses the highest EC temperature." Foreground="{StaticResource MutedTextBrush}" FontSize="12" TextWrapping="Wrap" Margin="1,0,0,5"/>
       <TextBlock x:Name="ModeStatus" Text="Connecting to the EC…" Foreground="{StaticResource AccentBrush}" FontSize="12" TextWrapping="Wrap" MinHeight="36" Margin="1,0,0,9"/>
       <Border Style="{StaticResource Card}" Padding="16,12" Margin="0,0,0,14">
