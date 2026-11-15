@@ -3,7 +3,7 @@ $taskRoot = Split-Path -Parent $PSScriptRoot
 $exePath = Join-Path $taskRoot 'build\OnlyFansControl\OnlyFansControl.exe'
 $artifactsPath = Join-Path $taskRoot 'artifacts'
 New-Item -ItemType Directory -Force -Path $artifactsPath | Out-Null
-foreach ($checkName in @('self-test','diagnose','preview')) {
+foreach ($checkName in @('self-test','curve-editor-test','diagnose','preview')) {
     $extension = if ($checkName -eq 'preview') { '.png' } else { '.json' }
     $checkOutput = Join-Path $artifactsPath ($checkName + $extension)
     $process = Start-Process -FilePath $exePath -ArgumentList @('--' + $checkName, ('"' + $checkOutput + '"')) -WindowStyle Hidden -PassThru

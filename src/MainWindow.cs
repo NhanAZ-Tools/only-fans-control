@@ -51,6 +51,11 @@ namespace OnlyFansControl
             Button("BiosButton").Click += delegate { SelectMode(FanMode.Bios); };
             Button("SmartButton").Click += delegate { SelectMode(FanMode.Smart); };
             Button("ConfigButton").Click += delegate { Process.Start(new ProcessStartInfo("notepad.exe", "\"" + FanConfig.FilePath + "\"") { UseShellExecute = true }); };
+            Button("CurveButton").Click += delegate
+            {
+                try { new CurveEditor(Window, new CurveDocument(FanConfig.FilePath, device.Ec)).ShowDialog(); }
+                catch (Exception error) { MessageBox.Show(Window, error.Message, "Unable to open curve editor", MessageBoxButton.OK, MessageBoxImage.Error); }
+            };
             Button("SensorsButton").Click += delegate { ShowSensors(); };
             Button("TrayButton").Click += delegate { Window.Hide(); };
             Button("ExitButton").Click += delegate { End(); };

@@ -39,6 +39,14 @@ Fan levels are EC steps, not fixed percentages or RPM targets. Firmware and sett
 
 ## Configuration
 
+**Edit fan curve** opens a live step-chart preview with editable temperature thresholds and levels. Add or remove points, then choose **Save curve**. The first threshold stays at 0 °C; temperatures must increase and levels cannot decrease. Invalid curves cannot be saved. Thermal protection and hysteresis remain in effect.
+
+Drag a graph dot horizontally to change its temperature or vertically to change its fan level. Values snap to whole degrees and discrete levels (1–7 or Max), and the table updates immediately. Points cannot cross neighboring thresholds or create decreasing fan levels. The first point stays at 0 °C, and the red thermal-protection boundary stays fixed. Dragging edits the draft; **Save curve** applies it.
+
+On a supported device, saving creates or updates only that device's profile curve, leaving the shared curve and other profiles unchanged. Legacy configurations keep their shared `fan_policy` format. Cancel discards edits. Saving keeps the current fan mode; active Smart auto reloads the saved curve on the next poll. Reopen the editor if the configuration was changed elsewhere while editing.
+
+![Fan curve editor with draggable points and editable thresholds](docs/images/curve-editor.png)
+
 **Open config** opens `only_fans_config.json` beside the EXE. Saved changes reload during the next polling cycle.
 
 - `curve` supplies the shared curve, initially tuned for the L14.
